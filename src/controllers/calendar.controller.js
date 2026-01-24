@@ -86,7 +86,11 @@ const getDayCalendar = async (req, res) => {
                         bookingStatus: displayStatus,
                         finalAmount: b.finalAmount,
                         advancePaid: payment ? payment.advancePaid : 0,
-                        balanceAmount: payment ? payment.balanceAmount : b.finalAmount
+                        balanceAmount: payment ? payment.balanceAmount : b.finalAmount,
+                        source: b.source || 'MANUAL',
+                        isReadOnly: b.source === 'RECURRING',
+                        disableEdit: b.source === 'RECURRING',
+                        disableDelete: b.source === 'RECURRING'
                     };
                 });
 

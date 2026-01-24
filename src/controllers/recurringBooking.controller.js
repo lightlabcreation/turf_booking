@@ -199,7 +199,7 @@ const deleteRecurringBooking = async (req, res) => {
         const rule = await RecurringBooking.findById(id).session(session);
         if (!rule) {
             // If rule is already gone, at least try to delete by ID if passed valid
-            await Booking.deleteMany({ recurringRuleId: ruleId }).session(session);
+            await Booking.deleteMany({ recurringId: ruleId }).session(session);
             await session.commitTransaction();
             return res.status(200).json({ success: true, message: 'Rule not found but attempted cleanup' });
         }
@@ -208,9 +208,9 @@ const deleteRecurringBooking = async (req, res) => {
         // Strategy: Match by ID link OR by exact metadata (for legacy bookings)
         const bookings = await Booking.find({
             $or: [
-                { recurringRuleId: ruleId },
+                { recurringId: ruleId },
                 {
-                    bookingSource: 'RECURRING',
+                    source: 'RECURRING',
                     customerPhone: rule.customerPhone,
                     courtId: rule.courtId,
                     startTime: rule.startTime,

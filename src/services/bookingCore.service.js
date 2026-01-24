@@ -27,10 +27,11 @@ const createSingleBooking = async (bookingData, session) => {
         paymentMode,
         paymentNotes,
         createdBy,
-        bookingSource = 'MANUAL',
-        recurringRuleId = null,
+        source = 'MANUAL',
+        recurringId = null,
         // Optional flag to skip some checks if they were done in bulk
-        skipAvailabilityCheck = false
+        skipAvailabilityCheck = false,
+        paymentStatus = null // Optional override
     } = bookingData;
 
     // Normalize Date immediately
@@ -82,6 +83,11 @@ const createSingleBooking = async (bookingData, session) => {
     // Ensure accurate integer
     finalAmount = Math.max(0, Math.ceil(finalAmount));
 
+    // override advance if paid
+    if (paymentStatus === 'PAID') {
+        advancePaid = finalAmount;
+    }
+
     if (advancePaid > finalAmount) {
         throw new Error('Advance cannot be more than final amount');
     }
@@ -102,8 +108,8 @@ const createSingleBooking = async (bookingData, session) => {
         finalAmount,
         createdBy,
         status: 'BOOKED',
-        bookingSource,
-        recurringRuleId
+        source,
+        recurringId
     }], { session });
 
     // 6. Create Slots
@@ -125,8 +131,8 @@ const createSingleBooking = async (bookingData, session) => {
         balanceAmount: finalAmount - (advancePaid || 0),
         paymentMode: paymentMode || 'CASH',
         paymentNotes,
-        status: (advancePaid || 0) <= 0 ? 'PENDING' :
-            (advancePaid || 0) >= finalAmount ? 'PAID' : 'PARTIAL'
+        status: paymentStatus || ((advancePaid || 0) <= 0 ? 'PENDING' :
+            (advancePaid || 0) >= finalAmount ? 'PAID' : 'PARTIAL')
     }], { session });
 
     return booking[0];

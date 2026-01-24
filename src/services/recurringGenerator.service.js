@@ -85,14 +85,14 @@ const processRecurringBooking = async (ruleId, externalSession = null) => {
                     startTime: rule.startTime,
                     endTime: rule.endTime,
                     // Use values from the recurring rule
-                    advancePaid: rule.advancePaid || 0,
+                    advancePaid: 0, // Advance is attached to the Subscription, not individual booking
+                    paymentStatus: rule.paymentStatus === 'PAID' ? 'PAID' : 'PENDING',
                     paymentMode: 'CASH', // Default, maybe add to rule too later if needed
-                    paymentNotes: 'Generated via Recurring Rule',
                     discountType: rule.discountType || 'NONE',
                     discountValue: rule.discountValue || 0,
                     createdBy: rule.createdBy,
-                    bookingSource: 'RECURRING',
-                    recurringRuleId: rule._id
+                    source: 'RECURRING',
+                    recurringId: rule._id
                 }, session);
 
                 results.success++;

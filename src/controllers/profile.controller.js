@@ -41,7 +41,7 @@ const updateProfile = async (req, res) => {
 
         if (name) user.name = name;
 
-        // Handle avatar upload via Cloudinary (custom storage engine handles the upload)
+        // Handle avatar upload via Cloudinary (multer-storage-cloudinary handled the upload)
         if (req.file) {
             // Delete old avatar from cloudinary if it exists
             if (user.avatar && user.avatar.includes('cloudinary')) {

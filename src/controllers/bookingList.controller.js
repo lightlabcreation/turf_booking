@@ -7,6 +7,7 @@ const Payment = require('../models/Payment.model');
 const Settings = require('../models/Settings.model');
 const { generateSlots } = require('../services/slotGenerator.service');
 const { calculatePrice } = require('../services/pricing.service');
+const { checkSlotAvailability, throwConflictError } = require('../services/slotValidation.service');
 
 /**
  * @desc    Get Bookings List (Staff View)
@@ -16,8 +17,8 @@ const getBookingsList = async (req, res) => {
     try {
         const { date, fromDate, toDate, courtId, paymentStatus, page = 1, limit = 10 } = req.query;
 
-        // Default: Show all manual bookings (include legacy records without bookingSource)
-        const query = { bookingSource: { $ne: 'RECURRING' } };
+        // Default: Show all manual bookings (include legacy records without source)
+        const query = { source: { $ne: 'RECURRING' } };
 
         // Filters
         if (date) {
@@ -191,20 +192,10 @@ const createStaffBooking = async (req, res) => {
         const bDate = new Date(bookingDate);
         bDate.setHours(0, 0, 0, 0);
 
-        const existingSlots = await BookingSlot.find({
-            courtId,
-            bookingDate: bDate,
-            slotTime: { $in: slots }
-        }).populate('bookingId').session(session);
-
-        const activeConflicts = existingSlots.filter(s => s.bookingId && s.bookingId.status === 'BOOKED');
-        if (activeConflicts.length > 0) {
-            const takenTimes = [...new Set(activeConflicts.map(s => s.slotTime))].join(', ');
-            return res.status(409).json({ message: `Slots already booked: ${takenTimes}` });
-        }
-
-        if (existingSlots.length > 0) {
-            await BookingSlot.deleteMany({ _id: { $in: existingSlots.map(s => s._id) } }).session(session);
+        // Global Slot Validation
+        const availability = await checkSlotAvailability(courtId, bDate, startTime, endTime, session);
+        if (!availability.available) {
+            return res.status(409).json({ message: `This slot is already booked. Please select another time. (Conflicts: ${availability.conflicts.join(', ')})` });
         }
 
         const baseAmount = calculatePrice(court, slots.length, bDate);
@@ -226,7 +217,7 @@ const createStaffBooking = async (req, res) => {
             finalAmount: totalAmount,
             createdBy: req.user._id,
             status: 'BOOKED',
-            bookingSource: 'MANUAL'
+            source: 'MANUAL'
         }], { session });
 
         await BookingSlot.insertMany(slots.map(time => ({
@@ -272,7 +263,7 @@ const updateBooking = async (req, res) => {
         const booking = await Booking.findById(id).session(session);
         if (!booking) throw new Error('Booking not found');
         if (booking.status === 'CANCELLED') throw new Error('Cannot edit a cancelled booking');
-        if (booking.bookingSource === 'RECURRING') throw new Error('Cannot edit a recurring booking via this endpoint');
+        if (booking.source === 'RECURRING') throw new Error('Cannot edit a recurring booking via this endpoint');
 
         // Only update allowed fields
         if (customerName) booking.customerName = customerName;
@@ -354,8 +345,11 @@ const cancelBooking = async (req, res) => {
         booking.status = 'CANCELLED';
         await booking.save({ session });
 
-        // Remove slots from calendar
-        await BookingSlot.deleteMany({ bookingId: booking._id }).session(session);
+        // Update slots to CANCELLED
+        await BookingSlot.updateMany(
+            { bookingId: booking._id },
+            { status: 'CANCELLED' }
+        ).session(session);
 
         // Keep payment record for audit, but maybe update notes
         const payment = await Payment.findOne({ bookingId: booking._id }).session(session);

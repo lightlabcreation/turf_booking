@@ -64,15 +64,16 @@ const bookingSchema = new mongoose.Schema({
         enum: ['BOOKED', 'CANCELLED', 'COMPLETED'],
         default: 'BOOKED',
     },
-    bookingSource: {
+    source: {
         type: String,
         enum: ['MANUAL', 'RECURRING'],
         default: 'MANUAL',
     },
-    recurringRuleId: {
+    recurringId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'RecurringBooking',
-        required: false
+        required: false,
+        default: null
     }
 }, { timestamps: true });
 
